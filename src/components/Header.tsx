@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { useUserStore } from '../store/userStore';
-import { logout } from '../services/auth';
+import { useUserStore } from '@/store/userStore';
+import { logout } from '@/services/auth';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -21,13 +21,20 @@ const Header = () => {
   useEffect(() => {
     const applyTheme = (isDarkMode: boolean) => {
       const html = document.documentElement;
+      const body = document.body;
+      
       if (isDarkMode) {
         html.classList.add('dark');
+        body.classList.add('dark');
         html.setAttribute('data-theme', 'dark');
       } else {
         html.classList.remove('dark');
+        body.classList.remove('dark');
         html.setAttribute('data-theme', 'light');
       }
+      
+      // Force reflow to ensure styles are applied
+      void html.offsetHeight;
     };
 
     const savedTheme = localStorage.getItem('theme');
@@ -41,23 +48,31 @@ const Header = () => {
   const toggleTheme = () => {
     const newTheme = !isDark;
     
-    // Update DOM first, then state
+    // Update state first to trigger re-render
+    setIsDark(newTheme);
+    
+    // Update DOM synchronously on both html and body
     const html = document.documentElement;
+    const body = document.body;
+    
     if (newTheme) {
       html.classList.add('dark');
+      body.classList.add('dark');
+      html.setAttribute('data-theme', 'dark');
       localStorage.setItem('theme', 'dark');
     } else {
       html.classList.remove('dark');
+      body.classList.remove('dark');
+      html.setAttribute('data-theme', 'light');
       localStorage.setItem('theme', 'light');
     }
     
-    // Update state after DOM update
-    setIsDark(newTheme);
+    // Force a reflow to ensure styles are recalculated
+    void html.offsetHeight;
+    void body.offsetHeight;
     
-    // Log for debugging
-    console.log('Theme toggled to:', newTheme ? 'dark' : 'light');
-    console.log('HTML classes:', html.className);
-    console.log('Has dark class:', html.classList.contains('dark'));
+    // Dispatch a custom event to notify other components
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { isDark: newTheme } }));
   };
 
   const publicNavLinks = [

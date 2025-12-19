@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useUserStore } from "../store/userStore";
+import { useUserStore } from "@/store/userStore";
 
 const Home = () => {
   const { user } = useUserStore();
@@ -54,6 +54,21 @@ const Home = () => {
 
   const pagesToShow = user ? protectedPages : [...publicPages, ...protectedPages];
 
+  // Add SpeechTest link in development mode
+  const devPages = import.meta.env.DEV
+    ? [
+        {
+          to: '/speech-test',
+          title: 'Speech Test',
+          description: 'Test Web Speech API (Dev only)',
+          icon: '🎤',
+          color: 'bg-yellow-500 hover:bg-yellow-600',
+        },
+      ]
+    : [];
+
+  const allPages = [...pagesToShow, ...devPages];
+
   return (
     <div className="py-8">
       <div className="mb-8">
@@ -68,7 +83,7 @@ const Home = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {pagesToShow.map((page) => {
+        {allPages.map((page) => {
           const isProtected = protectedPages.some((p) => p.to === page.to);
           const isAccessible = !isProtected || user;
 

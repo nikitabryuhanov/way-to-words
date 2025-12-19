@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import type { CefrLevel } from "../store/userStore";
-import { useWordStore, type WordStatus } from "../store/wordStore";
+import type { CefrLevel } from "@/store/userStore";
+import { useWordStore, type WordStatus } from "@/store/wordStore";
+import Card from "@/components/ui/Card";
+import Button from "@/components/ui/Button";
 
 interface DictionaryCardProps {
   word: string;
@@ -25,7 +27,7 @@ const DictionaryCard = ({
   paragraph,
   examples = [],
 }: DictionaryCardProps) => {
-  const { addWord, getWord, updateWordStatus } = useWordStore();
+  const { addWord, getWord, updateWordStatus, removeWord } = useWordStore();
   const savedWord = getWord(word);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -119,7 +121,7 @@ const DictionaryCard = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow duration-200">
+    <Card className="p-6" hover>
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-2">
@@ -221,12 +223,13 @@ const DictionaryCard = ({
           )}
           
           <div className="relative" ref={menuRef}>
-            <button
+            <Button
               onClick={() => setShowStatusMenu(!showStatusMenu)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors duration-200"
+              variant="primary"
+              size="sm"
             >
               {savedWord ? "Изменить статус" : "Добавить в словарь"}
-            </button>
+            </Button>
             
             {showStatusMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
@@ -249,7 +252,7 @@ const DictionaryCard = ({
                       <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
                       <button
                         onClick={() => {
-                          useWordStore.getState().removeWord(word);
+                          removeWord(word);
                           setShowStatusMenu(false);
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -264,7 +267,7 @@ const DictionaryCard = ({
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 };
 

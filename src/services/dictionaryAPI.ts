@@ -1,4 +1,4 @@
-import type { CefrLevel } from "../store/userStore";
+import type { CefrLevel } from "@/store/userStore";
 
 export interface WordDefinition {
   pos: string;
@@ -40,7 +40,6 @@ export const searchWord = async (query: string): Promise<DictionaryResult[]> => 
   const url = `${API_URL}/${normalizedQuery}`;
 
   try {
-    console.log('Fetching from URL:', url);
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -48,7 +47,6 @@ export const searchWord = async (query: string): Promise<DictionaryResult[]> => 
       },
     });
 
-    console.log('Response status:', response.status, response.statusText);
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -58,7 +56,6 @@ export const searchWord = async (query: string): Promise<DictionaryResult[]> => 
     }
 
     const data = await response.json();
-    console.log('API response data:', data);
 
     // Проверяем, что данные есть и это массив
     if (!data) {

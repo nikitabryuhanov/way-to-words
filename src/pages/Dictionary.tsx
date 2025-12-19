@@ -1,9 +1,9 @@
 import { useState, FormEvent } from "react";
-import { searchWord } from "../services/dictionaryAPI";
-import type { DictionaryResult } from "../services/dictionaryAPI";
-import DictionaryCard from "../components/DictionaryCard";
-import type { CefrLevel } from "../store/userStore";
-import { useWordStore, type WordStatus } from "../store/wordStore";
+import { searchWord } from "@/services/dictionaryAPI";
+import type { DictionaryResult } from "@/services/dictionaryAPI";
+import DictionaryCard from "@/components/DictionaryCard";
+import type { CefrLevel } from "@/store/userStore";
+import { useWordStore, type WordStatus } from "@/store/wordStore";
 
 type TabType = "search" | "my-words";
 

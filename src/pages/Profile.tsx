@@ -1,8 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadialBarChart, RadialBar } from "recharts";
-import { useUserStore } from "../store/userStore";
-import { useWordStore } from "../store/wordStore";
-import ProfileSummary from "../components/ProfileSummary";
+import { useUserStore } from "@/store/userStore";
+import { useWordStore } from "@/store/wordStore";
+import ProfileSummary from "@/components/ProfileSummary";
 
 const Profile = () => {
   const { user, updateStats } = useUserStore();

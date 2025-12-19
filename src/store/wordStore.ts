@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CefrLevel } from "./userStore";
+import type { CefrLevel } from "@/store/userStore";
 
 export type WordStatus = "learned" | "learning" | "planned";
 

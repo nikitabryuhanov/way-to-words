@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Define custom dark variant for Tailwind CSS v4 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @font-face {
   font-family: 'Wremena';
   src: url('/fonts/Wremena-Light.woff2') format('woff2');
@@ -29,8 +32,20 @@
 }
 
 /* Ensure dark mode works with class strategy */
-html.dark {
-  color-scheme: dark;
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  
+  :root.dark,
+  .dark {
+    color-scheme: dark;
+  }
+  
+  html.dark,
+  body.dark {
+    color-scheme: dark;
+  }
 }
 
 body {

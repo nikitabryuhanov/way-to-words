@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { User as FirebaseUser } from "../services/auth";
+import type { User as FirebaseUser } from "@/services/auth";
 
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
