@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Wremena';
+  src: url('/fonts/Wremena-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Wremena';
+  src: url('/fonts/Wremena-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Wremena';
+  src: url('/fonts/Wremena-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-wremena {
+  font-family: 'Wremena', serif;
+}
+
+/* Ensure dark mode works with class strategy */
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  @apply min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100;
+  font-family: 'Wremena', serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
