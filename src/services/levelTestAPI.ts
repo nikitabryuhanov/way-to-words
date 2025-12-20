@@ -1,7 +1,25 @@
 /**
  * Level Test API service
- * Prepares structure for future AI integration for CEFR level evaluation
+ * Integrates with AI-powered CEFR level evaluation via backend API
  */
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const EVALUATE_API_URL = `${BASE_URL}/api/evaluate`;
+
+// Request timeout in milliseconds (30 seconds for evaluation)
+const REQUEST_TIMEOUT = 30000;
+
+/**
+ * Create a fetch request with timeout
+ */
+function fetchWithTimeout(url: string, options: RequestInit, timeout: number): Promise<Response> {
+  return Promise.race([
+    fetch(url, options),
+    new Promise<Response>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    ),
+  ]);
+}
 
 export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
@@ -11,43 +29,63 @@ export interface LevelTestResult {
 }
 
 /**
- * Evaluate user's answer to determine CEFR level
- * Currently returns a random level as a placeholder
- * Future: Will integrate with AI model for actual evaluation
+ * Evaluate user's answer to determine CEFR level using AI
+ * Connects to Node.js backend server with HuggingFace integration
  * 
  * @param answer - User's answer or test response
  * @returns Promise with evaluated CEFR level and explanation
  */
 export async function evaluateAnswer(answer: string): Promise<LevelTestResult> {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 1500 + Math.random() * 1000));
+  try {
+    const response = await fetchWithTimeout(
+      EVALUATE_API_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ answer }),
+      },
+      REQUEST_TIMEOUT
+    );
 
-  // Generate random level (placeholder)
-  const levels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-  const randomLevel = levels[Math.floor(Math.random() * levels.length)];
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.message || `HTTP error! status: ${response.status}`
+      );
+    }
 
-  const explanations: Record<CefrLevel, string> = {
-    A1: 'Based on your response, you demonstrate basic English skills. You can understand and use familiar everyday expressions.',
-    A2: 'Your answer shows elementary English proficiency. You can communicate in simple and routine tasks.',
-    B1: 'You have intermediate English skills. You can understand the main points of clear standard input on familiar matters.',
-    B2: 'You demonstrate upper-intermediate proficiency. You can understand the main ideas of complex text on both concrete and abstract topics.',
-    C1: 'You show advanced English skills. You can understand a wide range of demanding, longer texts.',
-    C2: 'You have mastery-level English proficiency. You can understand with ease virtually everything heard or read.',
-  };
+    const data = await response.json();
+    
+    if (!data.level || !data.explanation) {
+      throw new Error('Invalid response format: missing level or explanation');
+    }
 
-  // Future implementation will look like:
-  // const response = await fetch('/api/level-test', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify({ answer }),
-  // });
-  // const data = await response.json();
-  // return { level: data.level, explanation: data.explanation };
+    // Validate level is a valid CEFR level
+    const validLevels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    if (!validLevels.includes(data.level as CefrLevel)) {
+      throw new Error(`Invalid CEFR level: ${data.level}`);
+    }
 
-  return {
-    level: randomLevel,
-    explanation: explanations[randomLevel],
-  };
+    return {
+      level: data.level as CefrLevel,
+      explanation: data.explanation,
+    };
+  } catch (error) {
+    // Handle timeout errors
+    if (error instanceof Error && error.message === 'Request timeout') {
+      throw new Error('Request timeout: Server did not respond in time. Please try again.');
+    }
+
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check if the backend is running.');
+    }
+
+    // Re-throw other errors
+    throw error;
+  }
 }
 
 /**

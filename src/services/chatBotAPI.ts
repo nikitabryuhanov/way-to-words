@@ -18,36 +18,74 @@ export interface ChatResponse {
   error?: string;
 }
 
+// Base URL for backend server
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+const CHAT_API_URL = `${BASE_URL}/api/chat`;
+
+// Request timeout in milliseconds (20 seconds)
+const REQUEST_TIMEOUT = 20000;
+
+/**
+ * Create a fetch request with timeout
+ */
+function fetchWithTimeout(url: string, options: RequestInit, timeout: number): Promise<Response> {
+  return Promise.race([
+    fetch(url, options),
+    new Promise<Response>((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    ),
+  ]);
+}
+
 /**
  * Send chat message to AI service
- * Currently returns a fake response based on the request
- * Future: Will integrate with HuggingFace, OpenAI, or custom AI model
+ * Connects to Node.js backend server
  * 
  * @param req - Chat request with message, topic, CEFR level, and history
  * @returns Promise with bot response text
  */
 export async function sendChatMessage(req: ChatRequest): Promise<string> {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 1000 + Math.random() * 1000));
+  try {
+    const response = await fetchWithTimeout(
+      CHAT_API_URL,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(req),
+      },
+      REQUEST_TIMEOUT
+    );
 
-  // Generate fake response based on request
-  if (!req.topic) {
-    return 'Please select a topic to start our conversation!';
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        errorData.message || `HTTP error! status: ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+    
+    if (!data.reply) {
+      throw new Error('Invalid response format: missing reply field');
+    }
+
+    return data.reply;
+  } catch (error) {
+    // Handle timeout errors
+    if (error instanceof Error && error.message === 'Request timeout') {
+      throw new Error('Request timeout: Server did not respond in time. Please try again.');
+    }
+
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check if the backend is running.');
+    }
+
+    // Re-throw other errors
+    throw error;
   }
-
-  // Simple echo response with context
-  const response = `You said: "${req.message}" (Topic: ${req.topic}${req.cefrLevel ? `, CEFR: ${req.cefrLevel}` : ''})`;
-
-  // Future implementation will look like:
-  // const response = await fetch('/api/chat', {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify(req),
-  // });
-  // const data = await response.json();
-  // return data.text;
-
-  return response;
 }
 
 /**

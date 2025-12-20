@@ -3,7 +3,7 @@ import VoiceButton from '@/components/VoiceButton';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import { speak } from '@/utils/speech';
-import { evaluateAnswer } from '@/services/levelTestAPI';
+import { evaluateAnswer, type CefrLevel, type LevelTestResult } from '@/services/levelTestAPI';
 import { useUserStore } from '@/store/userStore';
 
 interface Question {
@@ -11,6 +11,12 @@ interface Question {
   type: 'open-ended';
   text: string;
   placeholder?: string;
+}
+
+interface QuestionEvaluation {
+  questionId: string;
+  level: CefrLevel;
+  explanation: string;
 }
 
 // Sample questions for the test
@@ -50,13 +56,15 @@ const sampleQuestions: Question[] = [
 type TestState = 'not-started' | 'in-progress' | 'completed' | 'results';
 
 const LevelTest = () => {
-  const { user, updateCefrLevel } = useUserStore();
+  const { user, updateCefrLevel, updateStats } = useUserStore();
   const [testState, setTestState] = useState<TestState>('not-started');
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [testResult, setTestResult] = useState<{ level: string; explanation: string } | null>(null);
+  const [isEvaluatingQuestion, setIsEvaluatingQuestion] = useState(false);
+  const [questionEvaluations, setQuestionEvaluations] = useState<QuestionEvaluation[]>([]);
+  const [testResult, setTestResult] = useState<{ level: CefrLevel; explanation: string } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const currentQuestion = sampleQuestions[currentQuestionIndex];
@@ -116,7 +124,89 @@ const LevelTest = () => {
     }
   }, [currentQuestion]);
 
-  const handleNextQuestion = () => {
+  /**
+   * Calculate dominant CEFR level from evaluations
+   * Returns the most common level, or average if tied
+   */
+  const calculateDominantLevel = (evaluations: QuestionEvaluation[]): CefrLevel => {
+    if (evaluations.length === 0) return 'B1';
+
+    // Count occurrences of each level
+    const levelCounts: Record<CefrLevel, number> = {
+      A1: 0,
+      A2: 0,
+      B1: 0,
+      B2: 0,
+      C1: 0,
+      C2: 0,
+    };
+
+    evaluations.forEach((eval) => {
+      levelCounts[eval.level]++;
+    });
+
+    // Find the level with maximum count
+    let maxCount = 0;
+    let dominantLevel: CefrLevel = 'B1';
+
+    (Object.keys(levelCounts) as CefrLevel[]).forEach((level) => {
+      if (levelCounts[level] > maxCount) {
+        maxCount = levelCounts[level];
+        dominantLevel = level;
+      }
+    });
+
+    // If there's a tie, calculate average (convert to numeric, average, round)
+    const levelValues: Record<CefrLevel, number> = {
+      A1: 1,
+      A2: 2,
+      B1: 3,
+      B2: 4,
+      C1: 5,
+      C2: 6,
+    };
+
+    const tiedLevels = (Object.keys(levelCounts) as CefrLevel[]).filter(
+      (level) => levelCounts[level] === maxCount
+    );
+
+    if (tiedLevels.length > 1) {
+      // Calculate average
+      const avgValue = Math.round(
+        tiedLevels.reduce((sum, level) => sum + levelValues[level], 0) / tiedLevels.length
+      );
+      // Convert back to level
+      const levelFromValue = (Object.keys(levelValues) as CefrLevel[]).find(
+        (level) => levelValues[level] === avgValue
+      );
+      return levelFromValue || dominantLevel;
+    }
+
+    return dominantLevel;
+  };
+
+  const handleNextQuestion = async () => {
+    // Evaluate current question before moving to next
+    if (currentQuestion && currentAnswer.trim()) {
+      setIsEvaluatingQuestion(true);
+      try {
+        const evaluation = await evaluateAnswer(currentAnswer.trim());
+        setQuestionEvaluations((prev) => [
+          ...prev.filter((e) => e.questionId !== currentQuestion.id),
+          {
+            questionId: currentQuestion.id,
+            level: evaluation.level,
+            explanation: evaluation.explanation,
+          },
+        ]);
+      } catch (error) {
+        console.error('Error evaluating question:', error);
+        // Continue even if evaluation fails
+      } finally {
+        setIsEvaluatingQuestion(false);
+      }
+    }
+
     if (isLastQuestion) {
       handleSubmitTest();
     } else {
@@ -138,25 +228,78 @@ const LevelTest = () => {
     setIsEvaluating(true);
     
     try {
-      // Combine all answers into a single text for evaluation
-      const allAnswers = sampleQuestions
-        .map((q) => answers[q.id] || '')
-        .filter((answer) => answer.trim().length > 0)
-        .join(' ');
+      // Evaluate last question if not already evaluated
+      if (currentQuestion && currentAnswer.trim()) {
+        try {
+          const evaluation = await evaluateAnswer(currentAnswer.trim());
+          setQuestionEvaluations((prev) => [
+            ...prev.filter((e) => e.questionId !== currentQuestion.id),
+            {
+              questionId: currentQuestion.id,
+              level: evaluation.level,
+              explanation: evaluation.explanation,
+            },
+          ]);
+        } catch (error) {
+          console.error('Error evaluating last question:', error);
+        }
+      }
 
-      if (!allAnswers.trim()) {
+      // Wait a bit for state to update
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      
+      // Get the latest evaluations from state (including the one we just added)
+      // Use a callback to get the latest state
+      let finalEvaluations: QuestionEvaluation[] = [];
+      setQuestionEvaluations((prev) => {
+        finalEvaluations = prev;
+        return prev;
+      });
+      
+      // If we just added an evaluation, wait a bit more and get it again
+      if (currentQuestion && currentAnswer.trim()) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        setQuestionEvaluations((prev) => {
+          finalEvaluations = prev;
+          return prev;
+        });
+      }
+        
+      if (finalEvaluations.length === 0) {
         alert('Please answer at least one question before submitting.');
         setIsEvaluating(false);
         return;
       }
 
-      const result = await evaluateAnswer(allAnswers);
-      setTestResult(result);
+      // Calculate dominant level from all question evaluations
+      const finalLevel = calculateDominantLevel(finalEvaluations);
+      
+      // Create summary explanation
+      const levelBreakdown = finalEvaluations.reduce((acc, eval) => {
+        acc[eval.level] = (acc[eval.level] || 0) + 1;
+        return acc;
+      }, {} as Record<CefrLevel, number>);
+
+      const breakdownText = Object.entries(levelBreakdown)
+        .filter(([_, count]) => count > 0)
+        .map(([level, count]) => `${level}: ${count} question${count > 1 ? 's' : ''}`)
+        .join(', ');
+
+      const summaryExplanation = `Based on AI evaluation of your answers:\n\n${breakdownText}\n\nYour overall level is ${finalLevel}.`;
+
+      setTestResult({
+        level: finalLevel,
+        explanation: summaryExplanation,
+      });
       setTestState('results');
 
       // Update user's CEFR level in store
-      if (user && result.level) {
-        updateCefrLevel(result.level as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2');
+      if (user) {
+        updateCefrLevel(finalLevel);
+        // Increment tests passed
+        updateStats({
+          testsPassed: (user.stats.testsPassed || 0) + 1,
+        });
       }
     } catch (error) {
       console.error('Error evaluating test:', error);
@@ -172,6 +315,7 @@ const LevelTest = () => {
     setAnswers({});
     setCurrentAnswer('');
     setTestResult(null);
+    setQuestionEvaluations([]);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -218,21 +362,69 @@ const LevelTest = () => {
             Test Results
           </h1>
           {testResult && (
-            <Card className="p-6 space-y-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                  Your CEFR Level: {testResult.level}
-                </h2>
-                <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                  {testResult.explanation}
-                </p>
-              </div>
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                <Button onClick={handleRestartTest} variant="primary">
-                  Take Test Again
-                </Button>
-              </div>
-            </Card>
+            <div className="space-y-6">
+              {/* Main Result Card */}
+              <Card className="p-6 space-y-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                    Your CEFR Level: {testResult.level}
+                  </h2>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-line">
+                    {testResult.explanation}
+                  </p>
+                </div>
+              </Card>
+
+              {/* AI Evaluations Breakdown */}
+              {questionEvaluations.length > 0 && (
+                <Card className="p-6 space-y-4">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    Detailed AI Evaluations
+                  </h3>
+                  <div className="space-y-4">
+                    {questionEvaluations.map((evaluation, index) => {
+                      const question = sampleQuestions.find(
+                        (q) => q.id === evaluation.questionId
+                      );
+                      return (
+                        <div
+                          key={evaluation.questionId}
+                          className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                                  Question {index + 1}
+                                </span>
+                                <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-sm font-semibold">
+                                  {evaluation.level}
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                {question?.text}
+                              </p>
+                              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                {evaluation.explanation}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              )}
+
+              {/* Actions */}
+              <Card className="p-6">
+                <div className="flex gap-4">
+                  <Button onClick={handleRestartTest} variant="primary">
+                    Take Test Again
+                  </Button>
+                </div>
+              </Card>
+            </div>
           )}
         </div>
       </div>
@@ -260,9 +452,13 @@ const LevelTest = () => {
                 onClick={handleNextQuestion}
                 variant="primary"
                 size="sm"
-                disabled={isEvaluating}
+                disabled={isEvaluating || isEvaluatingQuestion}
               >
-                {isLastQuestion ? 'Submit' : 'Next'}
+                {isEvaluatingQuestion
+                  ? 'Evaluating...'
+                  : isLastQuestion
+                  ? 'Submit'
+                  : 'Next'}
               </Button>
             </div>
           </div>

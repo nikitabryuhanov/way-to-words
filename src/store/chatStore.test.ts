@@ -19,10 +19,11 @@ describe('chatStore', () => {
   });
 
   it('should initialize with default bot message', () => {
-    const { messages, topic } = useChatStore.getState();
+    const { messages, topic, isLoading } = useChatStore.getState();
     expect(messages).toHaveLength(1);
     expect(messages[0].author).toBe('bot');
     expect(topic).toBeNull();
+    expect(isLoading).toBe(false);
   });
 
   it('addUserMessage should add a user message', () => {
@@ -96,6 +97,34 @@ describe('chatStore', () => {
     expect(messages[1].text).toBe('First');
     expect(messages[2].text).toBe('Second');
     expect(messages[3].text).toBe('Third');
+  });
+
+  it('setLoading should update the loading state', () => {
+    act(() => {
+      useChatStore.getState().setLoading(true);
+    });
+    expect(useChatStore.getState().isLoading).toBe(true);
+
+    act(() => {
+      useChatStore.getState().setLoading(false);
+    });
+    expect(useChatStore.getState().isLoading).toBe(false);
+  });
+
+  it('setMessages should update messages and limit to MAX_MESSAGES', () => {
+    const manyMessages = Array.from({ length: 35 }, (_, i) => ({
+      id: `msg-${i}`,
+      author: (i % 2 === 0 ? 'user' : 'bot') as 'user' | 'bot',
+      text: `Message ${i}`,
+      time: '12:00 PM',
+    }));
+
+    act(() => {
+      useChatStore.getState().setMessages(manyMessages);
+    });
+
+    const { messages } = useChatStore.getState();
+    expect(messages.length).toBeLessThanOrEqual(30);
   });
 });
 
